@@ -32,6 +32,10 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('draw', data); // Broadcast to all except sender
   });
 
+  socket.on('clear', () => {
+    socket.broadcast.emit('clear'); // Broadcast to clear the canvas for everyone
+  });
+
   socket.on('disconnect', () => {
     console.log('A user disconnected:', socket.id);
   });
