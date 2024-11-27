@@ -99,6 +99,14 @@ const Canvas = () => {
         pointerSize,
         pointerSize
       );
+      socket.emit('draw', {
+        prevX,
+        prevY,
+        x: offsetX,
+        y: offsetY,
+        size: pointerSize,
+        color: 'white', // Eraser works by drawing in white
+      });
     }
 
     context.currentX = offsetX;
@@ -204,6 +212,7 @@ const Canvas = () => {
 };
 
 export default Canvas;
+
 
 // import React, { useRef, useEffect, useState } from 'react';
 // import { io } from 'socket.io-client';
