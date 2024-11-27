@@ -12,6 +12,7 @@ const Canvas = () => {
   const [pointerSize, setPointerSize] = useState(5); // State for pointer size
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 }); // Cursor position for custom cursor
   const [canvasOffset, setCanvasOffset] = useState({ top: 0, left: 0 }); // Canvas offset in the document
+  const [selectedColor, setSelectedColor] = useState('black'); // State for selected color
 
   // Setup canvas and Socket.IO listeners
   useEffect(() => {
@@ -21,16 +22,17 @@ const Canvas = () => {
 
     const context = canvas.getContext('2d');
     context.lineCap = 'round';
-    context.strokeStyle = 'black';
+    context.strokeStyle = selectedColor; // Set initial color
     contextRef.current = context;
 
     // Calculate canvas position relative to the viewport
     const { top, left } = canvas.getBoundingClientRect();
     setCanvasOffset({ top, left });
 
-    // Listen for drawing events
-    socket.on('draw', ({ prevX, prevY, x, y, size }) => {
+    // Listen for drawing events from other users
+    socket.on('draw', ({ prevX, prevY, x, y, size, color }) => {
       context.lineWidth = size;
+      context.strokeStyle = color; // Use the color received from socket event
       context.beginPath();
       context.moveTo(prevX, prevY);
       context.lineTo(x, y);
@@ -41,7 +43,7 @@ const Canvas = () => {
     socket.on('clear', () => {
       context.clearRect(0, 0, canvas.width, canvas.height);
     });
-  }, []);
+  }, []); // Empty dependency array ensures this effect only runs once
 
   // Start drawing or erasing
   const startDrawing = ({ nativeEvent }) => {
@@ -55,7 +57,8 @@ const Canvas = () => {
         pointerSize
       );
     } else {
-      contextRef.current.lineWidth = pointerSize; // Update line width only when starting to draw
+      contextRef.current.lineWidth = pointerSize; // Update line width
+      contextRef.current.strokeStyle = selectedColor; // Set selected color for pencil tool
       contextRef.current.beginPath();
       contextRef.current.moveTo(offsetX, offsetY);
       setIsDrawing(true);
@@ -87,6 +90,7 @@ const Canvas = () => {
         x: offsetX,
         y: offsetY,
         size: pointerSize,
+        color: selectedColor, // Emit the selected color
       });
     } else if (tool === 'erase') {
       context.clearRect(
@@ -127,27 +131,20 @@ const Canvas = () => {
   return (
     <div className="relative h-screen bg-gray-100">
       {/* Tool Controls */}
-      <div className="absolute top-4 left-4 z-10 flex items-center space-x-4 p-4 bg-white shadow-lg rounded-md">
+      <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center space-x-4 p-4 bg-white shadow-lg rounded-md">
         <button
-          className={`px-4 py-2 rounded ${
-            tool === 'pencil' ? 'bg-blue-600 text-white' : 'bg-blue-200 text-blue-600'
-          }`}
+          className={`px-4 py-2 rounded ${tool === 'pencil' ? 'bg-blue-600 text-white' : 'bg-blue-200 text-blue-600'}`}
           onClick={() => setTool('pencil')}
         >
           ✏️ Pencil
         </button>
         <button
-          className={`px-4 py-2 rounded ${
-            tool === 'erase' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}
+          className={`px-4 py-2 rounded ${tool === 'erase' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600'}`}
           onClick={() => setTool('erase')}
         >
           🧹 Eraser
         </button>
-        <button
-          className="px-4 py-2 bg-red-500 text-white rounded"
-          onClick={clearCanvas}
-        >
+        <button className="px-4 py-2 bg-red-500 text-white rounded" onClick={clearCanvas}>
           🗑️ Clear
         </button>
         <div className="flex items-center space-x-2">
@@ -161,6 +158,17 @@ const Canvas = () => {
             className="w-24"
           />
         </div>
+        {/* Color Palette */}
+        <div className="flex items-center space-x-2">
+          {['black', 'red', 'blue', 'green', 'yellow', 'purple'].map((color) => (
+            <button
+              key={color}
+              className={`w-8 h-8 rounded-full border-2 ${selectedColor === color ? 'border-gray-700' : 'border-transparent'}`}
+              style={{ backgroundColor: color }}
+              onClick={() => setSelectedColor(color)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Custom Cursor */}
@@ -171,11 +179,8 @@ const Canvas = () => {
           top: cursorPosition.y - pointerSize / 2,
           width: pointerSize,
           height: pointerSize,
-          backgroundColor: tool === 'erase' ? 'white' : 'black',
-          border:
-            tool === 'erase'
-              ? '1px solid gray'
-              : `1px solid ${tool === 'pencil' ? 'black' : 'transparent'}`,
+          backgroundColor: tool === 'erase' ? 'white' : selectedColor,
+          border: tool === 'erase' ? '1px solid gray' : `1px solid ${tool === 'pencil' ? selectedColor : 'transparent'}`,
           borderRadius: '50%',
           pointerEvents: 'none',
           zIndex: 9999,
@@ -199,6 +204,228 @@ const Canvas = () => {
 };
 
 export default Canvas;
+
+// import React, { useRef, useEffect, useState } from 'react';
+// import { io } from 'socket.io-client';
+
+// // Connect to the backend server
+// const socket = io('http://localhost:5000');
+
+// const Canvas = () => {
+//   const canvasRef = useRef(null);
+//   const contextRef = useRef(null);
+//   const [isDrawing, setIsDrawing] = useState(false);
+//   const [tool, setTool] = useState('pencil'); // State for tool selection
+//   const [pointerSize, setPointerSize] = useState(5); // State for pointer size
+//   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 }); // Cursor position for custom cursor
+//   const [canvasOffset, setCanvasOffset] = useState({ top: 0, left: 0 }); // Canvas offset in the document
+//   const [selectedColor, setSelectedColor] = useState('black'); // State for selected color
+
+//   // Setup canvas and Socket.IO listeners
+//   useEffect(() => {
+//     const canvas = canvasRef.current;
+//     canvas.width = window.innerWidth;
+//     canvas.height = window.innerHeight;
+
+//     const context = canvas.getContext('2d');
+//     context.lineCap = 'round';
+//     context.strokeStyle = selectedColor; // Set initial color
+//     contextRef.current = context;
+
+//     // Calculate canvas position relative to the viewport
+//     const { top, left } = canvas.getBoundingClientRect();
+//     setCanvasOffset({ top, left });
+
+//     // Listen for drawing events from other users
+//     socket.on('draw', ({ prevX, prevY, x, y, size, color }) => {
+//       context.lineWidth = size;
+//       context.strokeStyle = color; // Use the color received from socket event
+//       context.beginPath();
+//       context.moveTo(prevX, prevY);
+//       context.lineTo(x, y);
+//       context.stroke();
+//       context.closePath();
+//     });
+
+//     socket.on('clear', () => {
+//       context.clearRect(0, 0, canvas.width, canvas.height);
+//     });
+//   }, [selectedColor]); // Re-run when the selected color changes
+
+//   // Start drawing or erasing
+//   const startDrawing = ({ nativeEvent }) => {
+//     const { offsetX, offsetY } = getAdjustedCoordinates(nativeEvent);
+
+//     if (tool === 'erase') {
+//       contextRef.current.clearRect(
+//         offsetX - pointerSize / 2,
+//         offsetY - pointerSize / 2,
+//         pointerSize,
+//         pointerSize
+//       );
+//     } else {
+//       contextRef.current.lineWidth = pointerSize; // Update line width
+//       contextRef.current.strokeStyle = selectedColor; // Set selected color for pencil tool
+//       contextRef.current.beginPath();
+//       contextRef.current.moveTo(offsetX, offsetY);
+//       setIsDrawing(true);
+//     }
+//   };
+
+//   // Finish drawing or erasing
+//   const finishDrawing = () => {
+//     contextRef.current.closePath();
+//     setIsDrawing(false);
+//   };
+
+//   // Draw or erase depending on the tool
+//   const draw = ({ nativeEvent }) => {
+//     if (!isDrawing) return;
+
+//     const { offsetX, offsetY } = getAdjustedCoordinates(nativeEvent);
+//     const context = contextRef.current;
+//     const prevX = context.currentX || offsetX;
+//     const prevY = context.currentY || offsetY;
+
+//     if (tool === 'pencil') {
+//       context.lineWidth = pointerSize;
+//       context.lineTo(offsetX, offsetY);
+//       context.stroke();
+//       socket.emit('draw', {
+//         prevX,
+//         prevY,
+//         x: offsetX,
+//         y: offsetY,
+//         size: pointerSize,
+//         color: selectedColor, // Emit the selected color
+//       });
+//     } else if (tool === 'erase') {
+//       context.clearRect(
+//         offsetX - pointerSize / 2,
+//         offsetY - pointerSize / 2,
+//         pointerSize,
+//         pointerSize
+//       );
+//     }
+
+//     context.currentX = offsetX;
+//     context.currentY = offsetY;
+//   };
+
+//   // Adjust cursor position to account for canvas offset
+//   const updateCursor = ({ nativeEvent }) => {
+//     const { offsetX, offsetY } = getAdjustedCoordinates(nativeEvent);
+//     setCursorPosition({ x: offsetX, y: offsetY });
+//   };
+
+//   // Clear the canvas
+//   const clearCanvas = () => {
+//     const canvas = canvasRef.current;
+//     const context = canvas.getContext('2d');
+//     context.clearRect(0, 0, canvas.width, canvas.height);
+//     socket.emit('clear');
+//   };
+
+//   // Adjust event coordinates to account for canvas offset
+//   const getAdjustedCoordinates = (nativeEvent) => {
+//     const { clientX, clientY } = nativeEvent;
+//     return {
+//       offsetX: clientX - canvasOffset.left,
+//       offsetY: clientY - canvasOffset.top,
+//     };
+//   };
+
+//   return (
+//     <div className="relative h-screen bg-gray-100">
+//       {/* Tool Controls */}
+//       <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center space-x-4 p-4 bg-white shadow-lg rounded-md">
+//         <button
+//           className={`px-4 py-2 rounded ${
+//             tool === 'pencil' ? 'bg-blue-600 text-white' : 'bg-blue-200 text-blue-600'
+//           }`}
+//           onClick={() => setTool('pencil')}
+//         >
+//           ✏️ Pencil
+//         </button>
+//         <button
+//           className={`px-4 py-2 rounded ${
+//             tool === 'erase' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600'
+//           }`}
+//           onClick={() => setTool('erase')}
+//         >
+//           🧹 Eraser
+//         </button>
+//         <button
+//           className="px-4 py-2 bg-red-500 text-white rounded"
+//           onClick={clearCanvas}
+//         >
+//           🗑️ Clear
+//         </button>
+//         <div className="flex items-center space-x-2">
+//           <label className="text-gray-700 font-medium">Pointer Size:</label>
+//           <input
+//             type="range"
+//             min="2"
+//             max="20"
+//             value={pointerSize}
+//             onChange={(e) => setPointerSize(Number(e.target.value))}
+//             className="w-24"
+//           />
+//         </div>
+//         {/* Color Palette */}
+//         <div className="flex items-center space-x-2">
+//           {['black', 'red', 'blue', 'green', 'yellow', 'purple'].map((color) => (
+//             <button
+//               key={color}
+//               className={`w-8 h-8 rounded-full border-2 ${
+//                 selectedColor === color ? 'border-gray-700' : 'border-transparent'
+//               }`}
+//               style={{ backgroundColor: color }}
+//               onClick={() => setSelectedColor(color)}
+//             />
+//           ))}
+//         </div>
+//       </div>
+
+//       {/* Custom Cursor */}
+//       <div
+//         style={{
+//           position: 'absolute',
+//           left: cursorPosition.x - pointerSize / 2,
+//           top: cursorPosition.y - pointerSize / 2,
+//           width: pointerSize,
+//           height: pointerSize,
+//           backgroundColor: tool === 'erase' ? 'white' : selectedColor,
+//           border:
+//             tool === 'erase'
+//               ? '1px solid gray'
+//               : `1px solid ${tool === 'pencil' ? selectedColor : 'transparent'}`,
+//           borderRadius: '50%',
+//           pointerEvents: 'none',
+//           zIndex: 9999,
+//         }}
+//       />
+
+//       {/* Canvas */}
+//       <canvas
+//         ref={canvasRef}
+//         onMouseDown={startDrawing}
+//         onMouseUp={finishDrawing}
+//         onMouseLeave={finishDrawing}
+//         onMouseMove={(e) => {
+//           updateCursor(e);
+//           draw(e);
+//         }}
+//         className="w-full h-full bg-white shadow-lg"
+//       />
+//     </div>
+//   );
+// };
+
+// export default Canvas;
+
+
+
 
 
 
