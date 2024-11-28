@@ -1,6 +1,5 @@
 const express = require('express');
 const Drawing = require('../models/Drawing');
-
 const router = express.Router();
 
 // Save a drawing

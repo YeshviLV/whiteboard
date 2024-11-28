@@ -1,16 +1,18 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:5000');
+import { useAuth } from '../context/AuthContext';
 
 const Canvas = () => {
+  const { room } = useAuth(); // Access the current room from AuthContext
+  const socket = useRef(null); // Use ref for socket to prevent re-initialization
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
+
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState('pencil');
   const [pointerSize, setPointerSize] = useState(5);
   const [selectedColor, setSelectedColor] = useState('black');
-  const [lastPos, setLastPos] = useState(null); // Track the last position
+  const [lastPos, setLastPos] = useState(null);
 
   const colorPalette = [
     'black', 'red', 'blue', 'green', 'yellow', 'purple',
@@ -18,6 +20,8 @@ const Canvas = () => {
   ];
 
   useEffect(() => {
+    // Initialize the socket connection
+    socket.current = io('http://localhost:5000');
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -26,8 +30,12 @@ const Canvas = () => {
     context.lineCap = 'round';
     contextRef.current = context;
 
+    if (room) {
+      socket.current.emit('joinRoom', room); // Join the room
+    }
+
     // Listen for drawing events
-    socket.on('draw', ({ prevX, prevY, x, y, size, color }) => {
+    socket.current.on('draw', ({ prevX, prevY, x, y, size, color }) => {
       const context = contextRef.current;
       context.lineWidth = size;
       context.strokeStyle = color;
@@ -38,16 +46,24 @@ const Canvas = () => {
     });
 
     // Listen for clear events
-    socket.on('clear', () => {
+    socket.current.on('clear', () => {
       context.clearRect(0, 0, canvas.width, canvas.height);
     });
-  }, []);
+
+    return () => {
+      // Cleanup on component unmount
+      if (room) {
+        socket.current.emit('leaveRoom', room);
+      }
+      socket.current.disconnect();
+    };
+  }, [room]);
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
-    socket.emit('clear');
+    socket.current.emit('clear'); // Emit clear event to server
   };
 
   const startDrawing = (e) => {
@@ -67,7 +83,6 @@ const Canvas = () => {
     const { offsetX, offsetY } = e.nativeEvent;
     const context = contextRef.current;
 
-    // Draw on the canvas
     if (tool === 'pencil') {
       context.lineWidth = pointerSize;
       context.strokeStyle = selectedColor;
@@ -77,8 +92,7 @@ const Canvas = () => {
       context.lineTo(offsetX, offsetY);
       context.stroke();
 
-      // Emit drawing event
-      socket.emit('draw', {
+      socket.current.emit('draw', {
         prevX: lastPos.x,
         prevY: lastPos.y,
         x: offsetX,
@@ -104,17 +118,13 @@ const Canvas = () => {
       <div className="absolute top-4 left-4 z-10 bg-white shadow-md rounded-lg p-4 space-y-4">
         <div className="flex space-x-4">
           <button
-            className={`px-4 py-2 rounded ${
-              tool === 'pencil' ? 'bg-blue-600 text-white' : 'bg-blue-200 text-blue-600'
-            }`}
+            className={`px-4 py-2 rounded ${tool === 'pencil' ? 'bg-blue-600 text-white' : 'bg-blue-200 text-blue-600'}`}
             onClick={() => setTool('pencil')}
           >
             ✏️ Pencil
           </button>
           <button
-            className={`px-4 py-2 rounded ${
-              tool === 'erase' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600'
-            }`}
+            className={`px-4 py-2 rounded ${tool === 'erase' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600'}`}
             onClick={() => setTool('erase')}
           >
             🧹 Eraser
@@ -142,9 +152,7 @@ const Canvas = () => {
           {colorPalette.map((color) => (
             <button
               key={color}
-              className={`w-8 h-8 rounded-full border-2 ${
-                selectedColor === color ? 'border-gray-700' : 'border-transparent'
-              }`}
+              className={`w-8 h-8 rounded-full border-2 ${selectedColor === color ? 'border-gray-700' : 'border-transparent'}`}
               style={{ backgroundColor: color }}
               onClick={() => setSelectedColor(color)}
             />
@@ -165,6 +173,175 @@ const Canvas = () => {
 };
 
 export default Canvas;
+
+
+// import React, { useRef, useEffect, useState } from 'react';
+// import { io } from 'socket.io-client';
+
+// const socket = io('http://localhost:5000');
+
+// const Canvas = () => {
+//   const canvasRef = useRef(null);
+//   const contextRef = useRef(null);
+//   const [isDrawing, setIsDrawing] = useState(false);
+//   const [tool, setTool] = useState('pencil');
+//   const [pointerSize, setPointerSize] = useState(5);
+//   const [selectedColor, setSelectedColor] = useState('black');
+//   const [lastPos, setLastPos] = useState(null); // Track the last position
+
+//   const colorPalette = [
+//     'black', 'red', 'blue', 'green', 'yellow', 'purple',
+//     'orange', 'pink', 'brown', 'gray', 'cyan', 'lime',
+//   ];
+
+//   useEffect(() => {
+//     const canvas = canvasRef.current;
+//     canvas.width = window.innerWidth;
+//     canvas.height = window.innerHeight;
+
+//     const context = canvas.getContext('2d');
+//     context.lineCap = 'round';
+//     contextRef.current = context;
+
+//     // Listen for drawing events
+//     socket.on('draw', ({ prevX, prevY, x, y, size, color }) => {
+//       const context = contextRef.current;
+//       context.lineWidth = size;
+//       context.strokeStyle = color;
+//       context.beginPath();
+//       context.moveTo(prevX, prevY);
+//       context.lineTo(x, y);
+//       context.stroke();
+//     });
+
+//     // Listen for clear events
+//     socket.on('clear', () => {
+//       context.clearRect(0, 0, canvas.width, canvas.height);
+//     });
+//   }, []);
+
+//   const clearCanvas = () => {
+//     const canvas = canvasRef.current;
+//     const context = canvas.getContext('2d');
+//     context.clearRect(0, 0, canvas.width, canvas.height);
+//     socket.emit('clear');
+//   };
+
+//   const startDrawing = (e) => {
+//     const { offsetX, offsetY } = e.nativeEvent;
+//     setLastPos({ x: offsetX, y: offsetY });
+//     setIsDrawing(true);
+//   };
+
+//   const finishDrawing = () => {
+//     setIsDrawing(false);
+//     setLastPos(null);
+//   };
+
+//   const draw = (e) => {
+//     if (!isDrawing) return;
+
+//     const { offsetX, offsetY } = e.nativeEvent;
+//     const context = contextRef.current;
+
+//     // Draw on the canvas
+//     if (tool === 'pencil') {
+//       context.lineWidth = pointerSize;
+//       context.strokeStyle = selectedColor;
+
+//       context.beginPath();
+//       context.moveTo(lastPos.x, lastPos.y);
+//       context.lineTo(offsetX, offsetY);
+//       context.stroke();
+
+//       // Emit drawing event
+//       socket.emit('draw', {
+//         prevX: lastPos.x,
+//         prevY: lastPos.y,
+//         x: offsetX,
+//         y: offsetY,
+//         size: pointerSize,
+//         color: selectedColor,
+//       });
+
+//       setLastPos({ x: offsetX, y: offsetY });
+//     } else if (tool === 'erase') {
+//       context.clearRect(
+//         offsetX - pointerSize / 2,
+//         offsetY - pointerSize / 2,
+//         pointerSize,
+//         pointerSize
+//       );
+//     }
+//   };
+
+//   return (
+//     <div className="relative h-screen bg-gray-100">
+//       {/* Toolbar */}
+//       <div className="absolute top-4 left-4 z-10 bg-white shadow-md rounded-lg p-4 space-y-4">
+//         <div className="flex space-x-4">
+//           <button
+//             className={`px-4 py-2 rounded ${
+//               tool === 'pencil' ? 'bg-blue-600 text-white' : 'bg-blue-200 text-blue-600'
+//             }`}
+//             onClick={() => setTool('pencil')}
+//           >
+//             ✏️ Pencil
+//           </button>
+//           <button
+//             className={`px-4 py-2 rounded ${
+//               tool === 'erase' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-600'
+//             }`}
+//             onClick={() => setTool('erase')}
+//           >
+//             🧹 Eraser
+//           </button>
+//           <button className="px-4 py-2 bg-red-500 text-white rounded" onClick={clearCanvas}>
+//             🗑️ Clear
+//           </button>
+//         </div>
+
+//         {/* Pointer Size */}
+//         <div className="flex items-center space-x-2">
+//           <label className="text-gray-700 font-medium">Pointer Size:</label>
+//           <input
+//             type="range"
+//             min="2"
+//             max="20"
+//             value={pointerSize}
+//             onChange={(e) => setPointerSize(Number(e.target.value))}
+//             className="w-24"
+//           />
+//         </div>
+
+//         {/* Color Palette */}
+//         <div className="grid grid-cols-4 gap-2">
+//           {colorPalette.map((color) => (
+//             <button
+//               key={color}
+//               className={`w-8 h-8 rounded-full border-2 ${
+//                 selectedColor === color ? 'border-gray-700' : 'border-transparent'
+//               }`}
+//               style={{ backgroundColor: color }}
+//               onClick={() => setSelectedColor(color)}
+//             />
+//           ))}
+//         </div>
+//       </div>
+
+//       {/* Canvas */}
+//       <canvas
+//         ref={canvasRef}
+//         onMouseDown={startDrawing}
+//         onMouseUp={finishDrawing}
+//         onMouseMove={draw}
+//         className="w-full h-full bg-white"
+//       />
+//     </div>
+//   );
+// };
+
+// export default Canvas;
 
 
 

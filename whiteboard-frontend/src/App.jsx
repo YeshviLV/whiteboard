@@ -1,12 +1,11 @@
 import React from 'react';
-import Canvas from './components/Canvas';
+import { BrowserRouter as Router } from 'react-router-dom';
+import AppRouter from './router/Router';
 
-const App = () => {
-  return (
-    <div className="h-screen bg-gray-100">
-      <Canvas />
-    </div>
-  );
-};
+const App = () => (
+  <Router>
+    <AppRouter />
+  </Router>
+);
 
 export default App;
