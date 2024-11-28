@@ -9,9 +9,8 @@ const Canvas = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState('pencil');
   const [pointerSize, setPointerSize] = useState(5);
-  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
-  const [canvasOffset, setCanvasOffset] = useState({ top: 0, left: 0 });
   const [selectedColor, setSelectedColor] = useState('black');
+  const [lastPos, setLastPos] = useState(null); // Track the last position
 
   const colorPalette = [
     'black', 'red', 'blue', 'green', 'yellow', 'purple',
@@ -27,10 +26,9 @@ const Canvas = () => {
     context.lineCap = 'round';
     contextRef.current = context;
 
-    const { top, left } = canvas.getBoundingClientRect();
-    setCanvasOffset({ top, left });
-
+    // Listen for drawing events
     socket.on('draw', ({ prevX, prevY, x, y, size, color }) => {
+      const context = contextRef.current;
       context.lineWidth = size;
       context.strokeStyle = color;
       context.beginPath();
@@ -39,6 +37,7 @@ const Canvas = () => {
       context.stroke();
     });
 
+    // Listen for clear events
     socket.on('clear', () => {
       context.clearRect(0, 0, canvas.width, canvas.height);
     });
@@ -53,17 +52,13 @@ const Canvas = () => {
 
   const startDrawing = (e) => {
     const { offsetX, offsetY } = e.nativeEvent;
-    const context = contextRef.current;
-    context.lineWidth = pointerSize;
-    context.strokeStyle = selectedColor;
-    context.beginPath();
-    context.moveTo(offsetX, offsetY);
+    setLastPos({ x: offsetX, y: offsetY });
     setIsDrawing(true);
   };
 
   const finishDrawing = () => {
-    contextRef.current.closePath();
     setIsDrawing(false);
+    setLastPos(null);
   };
 
   const draw = (e) => {
@@ -72,17 +67,27 @@ const Canvas = () => {
     const { offsetX, offsetY } = e.nativeEvent;
     const context = contextRef.current;
 
+    // Draw on the canvas
     if (tool === 'pencil') {
+      context.lineWidth = pointerSize;
+      context.strokeStyle = selectedColor;
+
+      context.beginPath();
+      context.moveTo(lastPos.x, lastPos.y);
       context.lineTo(offsetX, offsetY);
       context.stroke();
+
+      // Emit drawing event
       socket.emit('draw', {
-        prevX: offsetX,
-        prevY: offsetY,
+        prevX: lastPos.x,
+        prevY: lastPos.y,
         x: offsetX,
         y: offsetY,
         size: pointerSize,
         color: selectedColor,
       });
+
+      setLastPos({ x: offsetX, y: offsetY });
     } else if (tool === 'erase') {
       context.clearRect(
         offsetX - pointerSize / 2,
