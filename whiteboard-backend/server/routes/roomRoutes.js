@@ -1,41 +1,35 @@
 const express = require('express');
+const { v4: uuidv4 } = require('uuid');
 const Room = require('../models/Room');
-const User = require('../models/User');
-const { default: mongoose } = require('mongoose');
 
 const router = express.Router();
 
 // Create Room
 router.post('/create', async (req, res) => {
   try {
-    const { roomName } = req.body;
-    const existingRoom = await Room.findOne({ roomName });
-    if (existingRoom) return res.status(400).json({ message: 'Room already exists' });
+    const { userId } = req.body; // Assuming userId is passed in the body
+    const roomId = uuidv4();
 
-    const newRoom = new Room({ roomName });
+    const newRoom = new Room({ roomId, createdBy: userId });
     await newRoom.save();
-    res.status(201).json(newRoom);
+
+    res.status(201).json({ roomId, message: 'Room created successfully' });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Join Room
-router.post('/join', async (req, res) => {
+// Validate Room
+router.post('/validate', async (req, res) => {
   try {
-    const { roomName, userId } = req.body;
-    const room = await Room.findOne({ roomName });
+    const { roomId } = req.body;
+
+    const room = await Room.findOne({ roomId });
     if (!room) return res.status(404).json({ message: 'Room not found' });
 
-    if (room.users.includes(userId)) {
-      return res.status(400).json({ message: 'User already in the room' });
-    }
-
-    room.users.push(userId);
-    await room.save();
-    res.status(200).json(room);
+    res.status(200).json({ message: 'Room exists' });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
